@@ -1,0 +1,8 @@
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Linux)
+PKG_CXXFLAGS = -Wno-ignored-attributes $(SHLIB_OPENMP_CXXFLAGS) -mavx
+endif
+
+ifeq ($(UNAME_S),Darwin)
+PKG_CXXFLAGS = -Wno-ignored-attributes -Xpreprocessor $(SHLIB_OPENMP_CXXFLAGS)
+endif
