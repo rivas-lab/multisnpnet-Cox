@@ -323,6 +323,8 @@ VectorXd compute_dual_norm(MatrixXd grad,
     int p = grad.rows();
     VectorXd upperbound((grad.cwiseAbs().rowwise().maxCoeff()).cwiseMin(grad.rowwise().norm()/alpha));
     VectorXd dual_norm(p);
+
+    #pragma omp parallel for schedule(dynamic, 1)
     for (int i = 0; i < p; ++i){
         double lower = 0.0;
         double upper = upperbound[i];
