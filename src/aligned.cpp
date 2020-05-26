@@ -246,7 +246,6 @@ Rcpp::List fit_aligned(Rcpp::NumericMatrix X,
 
 
         for (int i = 0; i< niter; i++){
-            std::cout  <<  i << std::endl;
             Rcpp::checkUserInterrupt();
             prev_B.noalias() = B;
             double cox_val = prob.get_gradient(v, grad, true);
