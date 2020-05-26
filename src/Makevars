@@ -1,6 +1,9 @@
+#MKLROOT=/share/software/user/restricted/imkl/2019/mkl
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Linux)
-PKG_CXXFLAGS = -Wno-ignored-attributes $(SHLIB_OPENMP_CXXFLAGS) -mavx
+#PKG_CXXFLAGS = -DMKL_LP64 -m64 -I$(MKLROOT)/include -Wno-ignored-attributes $(SHLIB_OPENMP_CXXFLAGS) -O3 -march=native 
+#PKG_LIBS=-L$(MKLROOT)/lib/intel64_lin -Wl,-rpath,${MKLROOT}/lib -lmkl_intel_ilp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -lm -ldl
+PKG_CXXFLAGS= -Wno-ignored-attributes $(SHLIB_OPENMP_CXXFLAGS) -O3 -march=native 
 endif
 
 ifeq ($(UNAME_S),Darwin)

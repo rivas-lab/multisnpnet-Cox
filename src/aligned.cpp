@@ -5,6 +5,7 @@
 #include <sys/time.h>
 #include <cmath>
 #include "mrcox_types.h"
+
 // [[Rcpp::depends(RcppEigen)]]
 //
 void rev_cumsum_assign(const MatrixXd &src, MatrixXd &dest)
@@ -41,7 +42,9 @@ class MCox_aligned
     MatrixXd residual;
 
     double get_residual(const MatrixXd &v, bool get_val=false){
+        //std::cout << "first product\n";
         eta.noalias() = X*v;
+        //std::cout << "first product done\n";
         // Get them in the right order
         #pragma omp parallel for
         for(int k = 0; k < K; ++k){
@@ -126,7 +129,9 @@ class MCox_aligned
 
     double get_gradient(const MatrixXd &v, MatrixXd & grad, bool get_val=false){
         double cox_val = get_residual(v, get_val);
+        //std::cout << "second product\n";
         grad.noalias() = (residual.transpose() * X).transpose();
+        //std::cout << "second product done\n";
         return cox_val;
     }
 
@@ -242,6 +247,7 @@ Rcpp::List fit_aligned(Rcpp::NumericMatrix X,
 
         for (int i = 0; i< niter; i++){
             std::cout  <<  i << std::endl;
+            Rcpp::checkUserInterrupt();
             prev_B.noalias() = B;
             double cox_val = prob.get_gradient(v, grad, true);
             while (true){
