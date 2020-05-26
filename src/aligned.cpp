@@ -224,6 +224,7 @@ Rcpp::List fit_aligned(Rcpp::NumericMatrix X,
     struct timeval start, end;
 
     Rcpp::List result(nlambda);
+    Rcpp::List residual_result(nlambda);
 
     for (int lam_ind = 0; lam_ind < nlambda; ++lam_ind){
         gettimeofday(&start, NULL);
@@ -254,17 +255,7 @@ Rcpp::List fit_aligned(Rcpp::NumericMatrix X,
                     rhs_ls = cox_val + (grad.array() * (B - v).array()).sum() + (B-v).squaredNorm()/(2*step_size);
                     stop = (cox_val_next <= rhs_ls);
                 }
-                // else if(abs((cox_val_next - cox_val)/fmax(1.0, abs(cox_val_next))) > 1e-10){
-                //     rhs_ls = cox_val + (grad.array() * (B - v).array()).sum() + (B-v).squaredNorm()/(2*step_size);
-                //     stop = (cox_val_next <= rhs_ls);
-                //     //std::cout << "first case " << cox_val_next << rhs_ls << std::endl;
-                // } 
-                // else {
-                //     prob.get_gradient(B, grad_ls, false);
-                //     rhs_ls = ((B-v).array() * (grad_ls - grad).array()).sum();
-                //     stop = (abs(rhs_ls) <= (B-v).squaredNorm()/(2*step_size));
-                //     //std::cout << "second case " << rhs_ls << std::endl;
-                // }
+
 
                 if (stop){
                     value_change = abs(cox_val_next - cox_val)/fmax(1.0, abs(cox_val));
@@ -273,17 +264,8 @@ Rcpp::List fit_aligned(Rcpp::NumericMatrix X,
                 step_size /= linesearch_beta;
             }
 
-            if((prev_B - B).lpNorm<Eigen::Infinity>() < eps){
-                std::cout << "convergence based on parameter change reached in " << i <<" iterations\n";
-                std::cout << "current step size is " << step_size << std::endl;
-                gettimeofday(&end, NULL);
-                double delta  = ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
-                std::cout <<  "elapsed time is " << delta << " seconds" << std::endl;
-                Rcpp::checkUserInterrupt();
-                break;
-            }
 
-            if(value_change < 1e-10){
+            if(value_change < 5e-7){
                 std::cout << "convergence based on value change reached in " << i <<" iterations\n";
                 std::cout << "current step size is " << step_size << std::endl;
                 gettimeofday(&end, NULL);
@@ -308,9 +290,11 @@ Rcpp::List fit_aligned(Rcpp::NumericMatrix X,
             }
         }
         result[lam_ind] = B;
+        residual_result[lam_ind] = prob.Rget_residual(B);
         std::cout << "Solution for the " <<  lam_ind+1 << "th lambda pair is obtained\n";
     }
-    return result;
+    return Rcpp::List::create(Rcpp::Named("result") = result,
+                              Rcpp::Named("residual") = residual_result);
 }
 
 
