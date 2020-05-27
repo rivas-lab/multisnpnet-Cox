@@ -189,7 +189,7 @@ basil = function(genotype.pfile, phe.file, responsid, covs = NULL,
     print(paste("Number of variables to be fitted is:",nrow(B_init)))
 
     X = as.matrix(select(phe_train, all_of(covs)))
-    print(paste("maximum value of X is ", max(abs(X))))
+
     result = fit.fun(X,y_list, status_list, lambda_seq_local, lambda_seq_local*alpha, p.fac=p.fac, B0=B_init)
     
     residual_all = result[['residual']]
