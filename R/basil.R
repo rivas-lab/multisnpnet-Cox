@@ -227,6 +227,7 @@ basil = function(genotype.pfile, phe.file, responsid, covs = NULL,
         X_val = as.matrix(select(phe_val, all_of(covs)))
         for(j in 1:local_valid){
             out[[max_valid_index+j]] = result[[j]]
+            colnames(out[[max_valid_index+j]]) = current_response
             for(i in 1:K){
               beta = result[[j]][, i]
               ind = match(current_response[i], responsid)
