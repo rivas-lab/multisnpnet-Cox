@@ -3,21 +3,11 @@
 #' @importFrom dplyr filter select
 #' @importFrom magrittr %>%
 #' @export
-basil = function(genotype.pfile, phe.file, responsid, covs = NULL, 
-                 nlambda = 100, lambda.min.ratio = 0.01, 
-                 alpha=NULL, p.factor = NULL,configs = NULL,
-                num_lambda_per_iter = 10, num_to_add = 200, use.gpu=FALSE)
+basil_base = function(genotype.pfile, phe.file, responsid, covs, 
+                      nlambda, lambda.min.ratio, 
+                      alpha, p.factor,configs,
+                      num_lambda_per_iter, num_to_add, fit.fun)
 {
-  if(use.gpu){
-    if(exists('solve_aligned_gpu')){
-      fit.fun = solve_aligned_gpu
-    } else {
-      stop("To use our GPU implementation you need to install 'proxgpu' pacakge")
-    }
-  } else {
-    print("To use our GPU implementation, install 'proxgpu' pacakge and set use.gpu=TRUE")
-    fit.fun = solve_aligned
-  }
   ### Get ids specified by psam --------------------------------------
   psamid = data.table::fread(paste0(genotype.pfile, '.psam'),
                              colClasses = list(character=c("IID")), select = c("IID"))
@@ -162,13 +152,6 @@ basil = function(genotype.pfile, phe.file, responsid, covs = NULL,
     score[which.in.model] <- NA
     sorted.score <- sort(score, decreasing = T, na.last = NA)
 
-    # if(num_to_add > (16000 - length(covs))){
-    #   warning("GPU memory limit will be reached, reduce number of variabels to add")
-    #   num_to_add = max(16000 - length(covs),0)
-    #   if(num_to_add == 0){
-    #     stop("GPU memory limit reached.")
-    #   }
-    # }
     features.to.add <- names(sorted.score)[1:min(num_to_add, length(sorted.score))]
     covs = c(covs, features.to.add)
     B_init = rbind(current_B, matrix(0.0, nrow=length(features.to.add), ncol=K))
@@ -236,7 +219,7 @@ basil = function(genotype.pfile, phe.file, responsid, covs = NULL,
             }
         }
         # Save temp result to files
-        save_list = list(Ctrain = Ctrain, Cval = Cval,  beta=out, covs=covs)
+        save_list = list(Ctrain = Ctrain, Cval = Cval,  beta=out, covs=covs, responsid = responsid)
         save(save_list, 
                 file=file.path(configs[['save.dir']], paste0("saveresult", iter, ".RData")))
 
@@ -293,4 +276,17 @@ basil = function(genotype.pfile, phe.file, responsid, covs = NULL,
 
   }
   return(save_list)
+}
+
+
+#' @export
+basil = function(genotype.pfile, phe.file, responsid, covs = NULL, 
+                 nlambda = 100, lambda.min.ratio = 0.01, 
+                 alpha=NULL, p.factor = NULL,configs = NULL,
+                 num_lambda_per_iter = 10, num_to_add = 200)
+{
+  basil_base(genotype.pfile, phe.file, responsid, covs, 
+                      nlambda, lambda.min.ratio, 
+                      alpha, p.factor,configs,
+                      num_lambda_per_iter, num_to_add,  solve_aligned)
 }
