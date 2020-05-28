@@ -1,3 +1,4 @@
+#define EIGEN_USE_MKL_ALL
 #include <Rcpp.h>
 #include <omp.h>
 #include <vector>
@@ -130,7 +131,8 @@ class MCox_aligned
     double get_gradient(const MatrixXd &v, MatrixXd & grad, bool get_val=false){
         double cox_val = get_residual(v, get_val);
         //std::cout << "second product\n";
-        grad.noalias() = (residual.transpose() * X).transpose();
+        //grad.noalias() = (residual.transpose() * X).transpose();
+        grad.noalias() = X.transpose() * residual;
         //std::cout << "second product done\n";
         return cox_val;
     }
