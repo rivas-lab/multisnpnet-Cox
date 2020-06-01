@@ -8,6 +8,7 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
                       alpha, p.factor,configs,
                       num_lambda_per_iter, num_to_add, fit.fun)
 {
+  responsid = as.character(responsid)
   ### Get ids specified by psam --------------------------------------
   psamid = data.table::fread(paste0(genotype.pfile, '.psam'),
                              colClasses = list(character=c("IID")), select = c("IID"))
@@ -43,13 +44,16 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
   phe = select(phe, -all_of(c(status_to_remove, response_to_remove)))
   
   status=status[!(responsid %in% id_to_remove)]
-  responses = responses[!(responsid %in% id_to_remove)]
+  responses = responses[!(responsid %in% id_to_remove)] # bad name, this is the name of the y column in phe
   responsid = responsid[!(responsid %in% id_to_remove)]
+  names(status) = responsid
+  names(responses) = responsid
   
-  K = length(responsid) # Number of responses
+  K = length(responsid) # Number of responses, this might change
   if(is.null(alpha)){
     alpha = sqrt(K) # Here alpha is the ratio of lambda_2 and lambda_1
   }
+  K0 = K # Number of initial response, this won't change
   
   ### Split the data according to the split column ---------------------------------
   phe_train = as.data.table(phe %>% filter(split=='train'))
@@ -60,6 +64,8 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
   ### Initialize train and validation C-index --------------------------------------------
   Ctrain = matrix(-1, nrow=K, ncol=nlambda)
   Cval = matrix(-1, nrow=K, ncol=nlambda)
+  rownames(Ctrain) = responsid
+  rownames(Cval) = responsid
   
   
   ### Read genotype files, copied from snpnet --------------------------------------------------
@@ -82,8 +88,8 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
   y_list = list()
   status_list = list()
   for(i in 1:length(responsid)){
-    y_list[[i]] = phe_train[[responses[i]]]
-    status_list[[i]] = phe_train[[status[i]]]
+    y_list[[responsid[i]]] = phe_train[[responses[i]]]
+    status_list[[responsid[i]]] = phe_train[[status[i]]]
   }
 
   result = fit.fun(X,y_list, status_list, c(0.0), c(0.0))
@@ -92,10 +98,11 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
 
   ### Compute CIndex ----------------------------------
   X_val = as.matrix(select(phe_val, all_of(covs)))
+  pred_train = X %*% result[[1]]
+  pred_val = X_val %*% result[[1]]
   for(i in 1:K){
-    beta = result[[1]][, i]
-    Ctrain[i,1] = cindex::CIndex(X %*% beta, y_list[[i]], status_list[[i]])
-    Cval[i,1] = cindex::CIndex(X_val %*% beta, phe_val[[responses[i]]], phe_val[[status[i]]])
+    Ctrain[i,1] = cindex::CIndex(pred_train[,i], y_list[[i]], status_list[[i]])
+    Cval[i,1] = cindex::CIndex(pred_val[,i], phe_val[[responses[i]]], phe_val[[status[i]]])
   }
 
   ### Compute residuals and gradient-------------------------------
@@ -116,21 +123,31 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
   
   # The first lambda solution is already obtained
   max_valid_index = 1
-  prev_valid_index = 0
 
   # Use validation C-index to determine early stop
   max_cindex = Cval[,1]
   early_stop = rep(FALSE, K)
   names(early_stop) = responsid
-  current_response = responsid
+  current_B = result[[1]]
+  rownames(current_B) = covs
+  colnames(current_B) = responsid
   out = list()
-  out[[1]] = result[[1]]
+  out[[1]] = current_B
   features.to.discard = NULL
   
   iter = 1
   ever.active = covs
   print(ever.active)
-  current_B = result[[1]]
+  best_lam_ind = rep(1, K) # keep track of iter at which each response achieves best validation metric
+  names(best_lam_ind) = responsid
+  ever_act_res_iter = vector('list', K) # keep track of iter at which each response achieves best validation metric
+  names(ever_act_res_iter) = responsid
+  for(i in 1:K)
+  {
+    ever_act_res_iter[[responsid[i]]] = list()
+    ever_act_res_iter[[responsid[i]]][[1]] = covs
+  }
+  current_response = responsid
   num_not_penalized = length(covs)
   
   ### Start BASIL -----------------------------------------------------------------
@@ -154,7 +171,7 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
 
     features.to.add <- names(sorted.score)[1:min(num_to_add, length(sorted.score))]
     covs = c(covs, features.to.add)
-    B_init = rbind(current_B, matrix(0.0, nrow=length(features.to.add), ncol=K))
+    B_init = rbind(current_B, matrix(0.0, nrow=length(features.to.add), ncol=ncol(current_B)))
     
     tmp.features.add <- prepareFeatures(pgen_train, vars, features.to.add, stats)
     phe_train[, colnames(tmp.features.add) := tmp.features.add]
@@ -177,6 +194,12 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
     
     residual_all = result[['residual']]
     result = result[['result']]
+    for(l in 1:length(result)){
+      rownames(result[[l]]) = covs
+      colnames(result[[l]]) = c(responsid[!early_stop], responsid[early_stop])
+    }
+    print(c("Colnames of results:", colnames(result[[1]])))
+    print(c("Colnames of current_B:", colnames(current_B)))
 
     residual_all = do.call(cbind, residual_all)
     residual_all = matrix(residual_all,nrow = length(phe_train$ID), ncol = K*num_lambda_per_iter, 
@@ -210,27 +233,29 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
         X_val = as.matrix(select(phe_val, all_of(covs)))
         for(j in 1:local_valid){
             out[[max_valid_index+j]] = result[[j]]
-            colnames(out[[max_valid_index+j]]) = current_response
             for(i in 1:K){
               beta = result[[j]][, i]
               ind = match(current_response[i], responsid)
               Ctrain[ind,max_valid_index+j] = cindex::CIndex(X %*% beta, y_list[[i]], status_list[[i]])
-              Cval[ind,max_valid_index+j] = cindex::CIndex(X_val %*% beta, phe_val[[responses[i]]], phe_val[[status[i]]])
+              cval_tmp = cindex::CIndex(X_val %*% beta, phe_val[[responses[i]]], phe_val[[status[i]]])
+              Cval[ind,max_valid_index+j] = cval_tmp
+              if(cval_tmp > max_cindex[ind]){
+                max_cindex[ind] = cval_tmp
+                best_lam_ind[ind] = max_valid_index+j
+              }
+              ever_act_res_iter[[ind]][[max_valid_index+j]] = union(ever_act_res_iter[[ind]][[max_valid_index+j-1]], names(which(beta!=0)))
             }
         }
         # Save temp result to files
-        save_list = list(Ctrain = Ctrain, Cval = Cval,  beta=out, covs=covs, responsid = responsid)
+        save_list = list(Ctrain = Ctrain, Cval = Cval,  beta=out)
         save(save_list, 
                 file=file.path(configs[['save.dir']], paste0("saveresult", iter, ".RData")))
 
 
         max_Cval_this_iter = apply(Cval[,(max_valid_index + 1):(max_valid_index+local_valid), drop=F], 1, max)
-        last_Cval_this_iter = Cval[,(max_valid_index+local_valid)]
         print(max_Cval_this_iter)
-        print(last_Cval_this_iter)
-        max_cindex = pmax(max_cindex, max_Cval_this_iter)
-        #early_stop = early_stop | (signif(last_Cval_this_iter,2) < signif(max_cindex,2))
-        early_stop = early_stop | (last_Cval_this_iter < max_cindex - 0.01)
+        early_stop = early_stop | (max_Cval_this_iter < max_cindex - 0.001)
+        #early_stop = early_stop | (last_Cval_this_iter < max_cindex - 0.01)
 
         if(all(early_stop)){
           print("Early stop reached")
@@ -241,36 +266,66 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
         if(sum(1-early_stop) < K){
           print("let's remove some response!")
           keep_ind = !(current_response %in% names(which(early_stop)))
+          print(c("The responses to be removed are", current_response[!keep_ind]))
+          print(c("The responses left are ", current_response[keep_ind]))
+          print(c("The responses left are ", names(which(!early_stop))))
           gradient = gradient[,((local_valid - 1)*K+1):(local_valid*K), drop=F]
           gradient = gradient[, keep_ind, drop=F]
-          print(keep_ind)
-          print(early_stop)
           responses = responses[keep_ind]
           status = status[keep_ind]
           y_list = y_list[keep_ind]
           status_list =  status_list[keep_ind]
-          current_B = result[[local_valid]][,keep_ind, drop=F]
+
+          current_B = result[[local_valid]][,(1:K), drop=F]
+          print(c("colnames of B before resposne removal:", colnames(current_B)))
+          
+          current_B = current_B[, keep_ind, drop=F]
+
+          print(c("colnames of B after resposne removal:", colnames(current_B)))
+
+          
+          # The ordering of the columns of current_B is specified by keep_ind
+          for(ids in responsid[early_stop]){
+            tmp = out[[best_lam_ind[ids]]][, ids]
+            tmp = tmp[tmp!=0]
+            current_B = cbind(current_B, 0.0)
+            current_B[names(tmp), ncol(current_B)] = tmp
+          }
+
+          print(c("colnames of B after binding previous resposnes:", colnames(current_B)))
+         
           K = sum(1-early_stop)
-          alpha = sqrt(K)
           current_response = responsid[!early_stop]
           score = get_dual_norm(gradient, alpha)
-          # recompute ever active set, focusing only on the remaning response
-          # the ever active set is computed only from valid results in this iteration
-          ever.active = covs[unique(unlist(lapply(result, function(x){ which(apply(abs(x), 1, function(y){sum(y[keep_ind])!=0}))})))]
-          print(ever.active[1:20])
+
 
         } else {
           score =  dnorm_list[[local_valid]]
           current_B = result[[local_valid]]
-          new.active = lapply(result, function(x){ which(apply(abs(x), 1, function(y){sum(y)!=0}))})
-          ever.active <- union(ever.active, covs[unique(unlist(new.active))])
         }
         print(paste("current number of reponses", K))
+        print("current responses are")
+        print(current_response)
+        print(names(status))
+        print(colnames(current_B))
+        print(dim(current_B))
+
+
+        ever.active = NULL
+        for(ids in responsid[!early_stop]){
+          ever.active = union(ever.active, ever_act_res_iter[[ids]][[max_valid_index + local_valid]])
+        }
+        for(ids in responsid[early_stop])
+        {
+          #ever.active = union(ever.active, ever_act_res_iter[[ids]][[best_lam_ind[ids]]])
+          ever.active = union(ever.active, ever_act_res_iter[[ids]][[length(ever_act_res_iter[[ids]])]])
+        }
+        print(paste("size of ever active set is ", length(ever.active)))
+        print(ever.active[1:20])
         
         max_valid_index = max_valid_index + local_valid
         features.to.discard = setdiff(covs, ever.active)
         print(paste("Number of features discarded in this iteration is", length(features.to.discard)))
-        print(paste("Number of ever active variables is", length(ever.active)))
     }
     iter = iter + 1
 

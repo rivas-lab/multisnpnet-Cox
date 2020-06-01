@@ -42,7 +42,7 @@ class MCox_aligned
     MatrixXd outer_accumu;
     MatrixXd residual;
 
-    double get_residual(const MatrixXd &v, bool get_val=false){
+    double get_residual(const MapMatd &v, bool get_val=false){
         //std::cout << "first product\n";
         eta.noalias() = X*v;
         //std::cout << "first product done\n";
@@ -128,7 +128,8 @@ class MCox_aligned
 
 
 
-    double get_gradient(const MatrixXd &v, MatrixXd & grad, bool get_val=false){
+    double get_gradient(const double *vptr, MatrixXd & grad, bool get_val=false){
+        MapMatd v(vptr, p, K);
         double cox_val = get_residual(v, get_val);
         //std::cout << "second product\n";
         //grad.noalias() = (residual.transpose() * X).transpose();
@@ -137,7 +138,8 @@ class MCox_aligned
         return cox_val;
     }
 
-    double get_value_only(const MatrixXd & v){
+    double get_value_only(const double *vptr){
+        MapMatd v(vptr, p, K);
         eta.noalias() = X*v;
         // Get them in the right order
         #pragma omp parallel for
@@ -166,16 +168,38 @@ class MCox_aligned
         return cox_val;
     }
 
-    MatrixXd Rget_residual(const MatrixXd & v){
+    MatrixXd Rget_residual(const double *vptr){
+        MapMatd v(vptr, p, K);
         get_residual(v);
         return residual;
     }
 };
 
+
+void grad_step_l1(Eigen::Map<Eigen::MatrixXd> & B, const MatrixXd & grad, const MatrixXd &v, const double step_size,
+                    double lambda_1, const VectorXd & penalty_factor)
+{
+    B.noalias() = v - step_size*grad;
+    B = ((B.cwiseAbs().colwise() - lambda_1*step_size*penalty_factor).array().max(0) * B.array().sign()).matrix();
+}
+
+void get_row_norm(const MatrixXd &Bfull, const double step_size, double lambda_2, 
+                const VectorXd & penalty_factor, VectorXd & B_row_norm)
+{
+    B_row_norm.noalias() = Bfull.rowwise().norm().cwiseMax(lambda_2*step_size*penalty_factor);
+}
+
+void prox_l2(Eigen::Map<Eigen::MatrixXd> & B, const double step_size, double lambda_2, 
+                const VectorXd & penalty_factor, const VectorXd & B_row_norm)
+{
+    B =  ((B_row_norm.array() - lambda_2*step_size*penalty_factor.array())/(B_row_norm.array())).matrix().asDiagonal() * B;
+}
+
 void update_parameters(MatrixXd & B, const MatrixXd & grad, const MatrixXd &v, const double step_size,
                        double lambda_1, double lambda_2, const VectorXd & penalty_factor,
                        VectorXd & B_row_norm)
 {
+    int K = grad.cols();
     B.noalias() = v - step_size*grad;
     // Apply proximal operator here:
     //Soft-thresholding
@@ -205,8 +229,11 @@ Rcpp::List fit_aligned(Rcpp::NumericMatrix X,
 {
     int N = X.rows();
     int p = X.cols();
-    int K = B0.cols();
-    MapMatd Bmap(&B0(0,0), p, K);
+    int K = status.cols();
+    int K0 = B0.cols();
+    // B has K >= K0 columns, the extra columns  will be used for group proximal operator
+    MapMatd Bmap(&B0(0,0), p, K0);
+    MapMatd vmap(&B0(0,0), p, K);
 
     MCox_aligned prob(N,
                         K,
@@ -217,9 +244,10 @@ Rcpp::List fit_aligned(Rcpp::NumericMatrix X,
                         &rankmax(0,0),
                         order_list);
 
-    MatrixXd B(Bmap);
-    MatrixXd prev_B(B);
-    MatrixXd v(B);
+    MatrixXd Bfull(Bmap); // has dimension p by K0
+    Eigen::Map<Eigen::MatrixXd> B(Bfull.data(), p, K);
+    MatrixXd prev_B(vmap);
+    MatrixXd v(vmap);
     MatrixXd grad(p,K);
     MatrixXd grad_ls(p,K);
     VectorXd B_row_norm(p);
@@ -250,11 +278,16 @@ Rcpp::List fit_aligned(Rcpp::NumericMatrix X,
         for (int i = 0; i< niter; i++){
             Rcpp::checkUserInterrupt();
             prev_B.noalias() = B;
-            double cox_val = prob.get_gradient(v, grad, true);
+            double cox_val = prob.get_gradient(v.data(), grad, true);
             while (true){
-                update_parameters(B, grad, v, step_size, lambda_1, lambda_2, pfac, B_row_norm);
+                grad_step_l1(B, grad, v, step_size, lambda_1, pfac);
+                get_row_norm(Bfull, step_size, lambda_2, pfac, B_row_norm);
+                prox_l2(B, step_size, lambda_2, pfac, B_row_norm);
 
-                double cox_val_next = prob.get_value_only(B);
+
+                //update_parameters(B, grad, v, step_size, lambda_1, lambda_2, pfac, B_row_norm);
+
+                double cox_val_next = prob.get_value_only(B.data());
 
                 if(!std::isfinite(cox_val_next)){
                     stop = false;
@@ -296,8 +329,8 @@ Rcpp::List fit_aligned(Rcpp::NumericMatrix X,
                 Rcpp::checkUserInterrupt();
             }
         }
-        result[lam_ind] = B;
-        residual_result[lam_ind] = prob.Rget_residual(B);
+        result[lam_ind] = Bfull;
+        residual_result[lam_ind] = prob.Rget_residual(B.data());
         std::cout << "Solution for the " <<  lam_ind+1 << "th lambda pair is obtained\n";
     }
     return Rcpp::List::create(Rcpp::Named("result") = result,
@@ -359,6 +392,6 @@ MatrixXd compute_residual(Rcpp::NumericMatrix X,
                         &rankmin(0,0),
                         &rankmax(0,0),
                         order_list);
-    return prob.Rget_residual(v);
+    return prob.Rget_residual(v.data());
 
 }
