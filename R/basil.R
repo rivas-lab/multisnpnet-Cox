@@ -251,10 +251,9 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
         save(save_list, 
                 file=file.path(configs[['save.dir']], paste0("saveresult", iter, ".RData")))
 
-
-        max_Cval_this_iter = apply(Cval[,(max_valid_index + 1):(max_valid_index+local_valid), drop=F], 1, max)
-        print(max_Cval_this_iter)
-        early_stop = early_stop | (max_Cval_this_iter < max_cindex - 0.001)
+        last_Cval_this_iter = Cval[,(max_valid_index+local_valid)]
+        #max_Cval_this_iter = apply(Cval[,(max_valid_index + 1):(max_valid_index+local_valid), drop=F], 1, max)
+        early_stop = early_stop | (last_Cval_this_iter < max_cindex - 0.001)
         #early_stop = early_stop | (last_Cval_this_iter < max_cindex - 0.01)
 
         if(all(early_stop)){
@@ -286,7 +285,8 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
           
           # The ordering of the columns of current_B is specified by keep_ind
           for(ids in responsid[early_stop]){
-            tmp = out[[best_lam_ind[ids]]][, ids]
+            #tmp = out[[best_lam_ind[ids]]][, ids]
+            tmp = out[[length(ever_act_res_iter[[ids]])]][, ids]
             tmp = tmp[tmp!=0]
             current_B = cbind(current_B, 0.0)
             current_B[names(tmp), ncol(current_B)] = tmp

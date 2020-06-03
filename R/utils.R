@@ -76,10 +76,16 @@ readBinMat <- function(fhead, configs){
     rows <- data.table::fread(cmd=paste0(configs[['zstdcat.path']], ' ', fhead, '.vars.zst'), head=F)$V1
     cols <- data.table::fread(paste0(fhead, '.cols'), head=F)$V1
     bin.reader <- file(paste0(fhead, '.bin'), 'rb')
+    # M = matrix(
+    #     readBin(bin.reader, 'double', n=length(rows)*length(cols), endian = configs[['endian']]),
+    #     nrow=length(rows), ncol=length(cols), byrow = T
+    # )
+
     M = matrix(
-        readBin(bin.reader, 'double', n=length(rows)*length(cols), endian = configs[['endian']]),
+        readBin(bin.reader, 'numeric', n=length(rows)*length(cols), size=4, endian = configs[['endian']]),
         nrow=length(rows), ncol=length(cols), byrow = T
     )
+
     close(bin.reader)
     colnames(M) <- cols
     rownames(M) <- rows
@@ -119,7 +125,7 @@ computeProduct <- function(residual, pfile, vars, stats, configs, iter) {
         '--read-freq', paste0(configs[['gcount.full.prefix']], '.gcount'),
         '--keep', residual_f,
         '--out', stringr::str_replace_all(residual_f, '.tsv$', ''),
-        '--variant-score', residual_f, 'zs', 'bin', 
+        '--variant-score', residual_f, 'zs', 'bin4', 'single-prec',
         sep=' '
     ), intern=F, wait=T)
 
