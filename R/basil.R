@@ -314,7 +314,7 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
          
           K = sum(1-early_stop)
           current_response = responsid[!early_stop]
-          score = get_dual_norm(gradient, alpha)
+          score = get_dual_norm(gradient, alpha)/p.factor[rownames(gradient)]
 
 
         } else {
