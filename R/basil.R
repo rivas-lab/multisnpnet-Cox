@@ -79,6 +79,21 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
   pgenlibr::ClosePvar(pvar)    
 
   stats <- computeStats(genotype.pfile, paste(phe_train$ID, phe_train$ID, sep="_"), configs = configs)
+
+  cov.factor = rep(0.0, length(covs))
+  names(cov.factor) = covs
+  if(is.null(p.factor)){
+    p.factor = rep(1.0, length(vars))
+    names(p.factor) = vars
+  } else {
+    if(!(all(vars %in% names(p.factor)))){
+      stop("p.factor must be NULL or provide factor for all variants")
+    }
+    if(any(p.factor) <= 0){
+      stop("We only support stricly positive penalty factor.")
+    }
+  }
+  p.factor = c(cov.factor, p.factor)
   
   ### Fit an unpenalized model ------------------------------------------------------
   if(length(covs) < 1){
@@ -114,6 +129,7 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
 
   ### Get the dual_norm of the gradient ---------------------------
   score = get_dual_norm(gradient, alpha)
+  score = score / p.factor[names(score)]
   
   ### Get lambda sequences --------------------------------------------------------
   lambda_max = max(score)
@@ -183,9 +199,11 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
     
     # Not fit a regularized Cox model for the next few lambdas
     lambda_seq_local = lambda_seq[(max_valid_index + 1):min(max_valid_index + num_lambda_per_iter, length(lambda_seq))]
-    # Need better ways to set p.fac
-    p.fac = rep(1, nrow(B_init))
-    p.fac[1:num_not_penalized] = 0.0
+
+    # p.fac = rep(1, nrow(B_init))
+    # p.fac[1:num_not_penalized] = 0.0
+    
+    p.fac = p.factor[covs]
     print(paste("Number of variables to be fitted is:",nrow(B_init)))
 
     X = as.matrix(select(phe_train, all_of(covs)))
@@ -213,7 +231,7 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
         start = (i-1)*K+1
         end = i*K
         grad_local = gradient[,start:end, drop=F]
-        dnorm_list[[i]] = get_dual_norm(grad_local, alpha)
+        dnorm_list[[i]] = get_dual_norm(grad_local, alpha)/p.factor[rownames(grad_local)]
     }
     
 
