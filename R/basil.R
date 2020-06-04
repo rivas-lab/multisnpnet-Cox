@@ -89,7 +89,7 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
     if(!(all(vars %in% names(p.factor)))){
       stop("p.factor must be NULL or provide factor for all variants")
     }
-    if(any(p.factor) <= 0){
+    if(any(p.factor <= 0)){
       stop("We only support stricly positive penalty factor.")
     }
   }
