@@ -1,7 +1,7 @@
 # Multi-snpnet-Cox (mrcox) Efficient Group-Sparse Lasso solver for multiresponse Cox model
 
 ### Installation guide for SCG and Sherlock Cluster
-To install this R package on SCG, first load the dependencies through `ml msc/0.1.0`. The install the package in `R`:
+To install this R package on SCG, first load the dependencies through `ml msc/0.1.0`. Then install the package in `R`:
 ```r
 install.packages("<where the package is downloaded>", repo=NULL, type="source")
 ```
