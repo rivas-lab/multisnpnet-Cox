@@ -218,6 +218,7 @@ setupConfigs <- function(configs, genotype.pfile, phenotype.file, phenotype, cov
 }
                                  
 ## logger functions
+printf <- function(...) invisible(cat(sprintf(...)))
 
 snpnetLogger <- function(message, log.time = NULL, indent=0, funcname='snpnet'){
     if (is.null(log.time)) log.time <- Sys.time()

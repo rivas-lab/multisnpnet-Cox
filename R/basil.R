@@ -15,6 +15,8 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
   psamid = psamid$IID
  
   ### Read responses and covariates --------------------------------------
+  time.readphe.start <- Sys.time()
+  snpnetLogger('Start reading phenotype file', indent=2, log.time=time.readphe.start)
   status = paste0("coxnet_status_f.", responsid, ".0.0")
   responses = paste0("coxnet_y_f.", responsid, ".0.0")
   
@@ -24,19 +26,20 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
   # Do not allow NA in any column 
   phe=phe[complete.cases(phe), ]
   names(phe)[1] = "ID"
+
+  snpnetLoggerTimeDiff('End reading phenotype file.', time.readphe.start, indent=3)
   
   ### Filter out responses with too few events --------------------------------------
   id_to_remove = NULL
   for(i in 1:length(status)){
       s = status[i]
       num_event = sum(phe %>% filter(split == "train") %>% select(all_of(s)))
-      cat(paste("Code:", responsid[i]))
-      cat(paste("Number of events in validation set", sum(phe %>% filter(split == "val") %>% select(all_of(s)))))
-      cat(paste("Number of events in training set", num_event))
-      cat("\n")
+      printf("Code: %s, number of events in training set: %-7d", responsid[i], num_event)
       if(num_event <100){
-          id_to_remove = c(id_to_remove,  responsid[i])        
+          id_to_remove = c(id_to_remove,  responsid[i])
+          printf("Too few events, removed!")
       }
+      printf("\n")
   }
   
   status_to_remove = paste0("coxnet_status_f.", id_to_remove, ".0.0")
@@ -69,6 +72,9 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
   
   
   ### Read genotype files, copied from snpnet --------------------------------------------------
+  time.computestats.start <- Sys.time()
+  snpnetLogger('Start loading and computing genotype statistics', indent=2, log.time=time.computestats.start)
+
   vars <- dplyr::mutate(dplyr::rename(data.table::fread(cmd=paste0(configs[['zstdcat.path']], ' ', paste0(genotype.pfile, '.pvar.zst'))), 'CHROM'='#CHROM'), 
                         VAR_ID=paste(ID, ALT, sep='_'))$VAR_ID
   pvar <- pgenlibr::NewPvar(paste0(genotype.pfile, '.pvar.zst'))
@@ -79,6 +85,8 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
   pgenlibr::ClosePvar(pvar)    
 
   stats <- computeStats(genotype.pfile, paste(phe_train$ID, phe_train$ID, sep="_"), configs = configs)
+
+  snpnetLoggerTimeDiff('End loading and computing genotype statistics.', time.computestats.start, indent=3)
 
   cov.factor = rep(0.0, length(covs))
   names(cov.factor) = covs
@@ -99,6 +107,9 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
   if(length(covs) < 1){
     stop("The version without covariates will be implemented later")
   }
+  iter = 0
+  # time.basilload.start <- Sys.time()
+  # snpnetLogger(sprintf('Start loading training data for basil iteration %d.', iter), indent=2, log.time=time.basilload.start)
   X = as.matrix(select(phe_train, all_of(covs)))
   y_list = list()
   status_list = list()
@@ -106,12 +117,20 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
     y_list[[responsid[i]]] = phe_train[[responses[i]]]
     status_list[[responsid[i]]] = phe_train[[status[i]]]
   }
+  # snpnetLoggerTimeDiff(sprintf('End loading training data for basil iteration %d.', iter), time.basilload.start, indent=3)
 
+
+  time.basilfit.start <- Sys.time()
+  snpnetLogger(sprintf('Start fitting step for basil iteration %d.', iter), indent=2, log.time=time.basilfit.start)
   result = fit.fun(X,y_list, status_list, c(0.0), c(0.0))
+  snpnetLoggerTimeDiff(sprintf('End fitting step for basil iteration %d.', iter), time.basilfit.start, indent=3)
+
   residuals =  result[['residual']][[1]]
   result = result[['result']]
 
   ### Compute CIndex ----------------------------------
+  time.basilmetric.start <- Sys.time()
+  snpnetLogger(sprintf('Start metric evaluations for basil iteration %d.', iter), indent=2, log.time=time.basilmetric.start)
   X_val = as.matrix(select(phe_val, all_of(covs)))
   pred_train = X %*% result[[1]]
   pred_val = X_val %*% result[[1]]
@@ -119,6 +138,7 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
     Ctrain[i,1] = cindex::CIndex(pred_train[,i], y_list[[i]], status_list[[i]])
     Cval[i,1] = cindex::CIndex(pred_val[,i], phe_val[[responses[i]]], phe_val[[status[i]]])
   }
+  snpnetLoggerTimeDiff(sprintf('End metric evaluations for basil iteration %d.', iter), time.basilmetric.start, indent=3)
 
   ### Compute residuals and gradient-------------------------------
   residuals = matrix(residuals,nrow = length(phe_train$ID), ncol = K, dimnames = list(paste(phe_train$ID, phe_train$ID, sep='_'), 
@@ -128,8 +148,11 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
   gradient = gradient[-which(rownames(gradient) %in% stats$excludeSNP), ]
 
   ### Get the dual_norm of the gradient ---------------------------
+  time.dnorm.start <- Sys.time()
+  snpnetLogger(sprintf('Computing dual-norm for basil iteration %d.', iter), indent=2, log.time=time.dnorm.start)
   score = get_dual_norm(gradient, alpha)
   score = score / p.factor[names(score)]
+  snpnetLoggerTimeDiff(sprintf('Finished computing dual-norm for basil iteration %d.', iter), time.dnorm.start, indent=3)
   
   ### Get lambda sequences --------------------------------------------------------
   lambda_max = max(score)
@@ -153,7 +176,6 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
   
   iter = 1
   ever.active = covs
-  print(ever.active)
   best_lam_ind = rep(1, K) # keep track of iter at which each response achieves best validation metric
   names(best_lam_ind) = responsid
   ever_act_res_iter = vector('list', K) # keep track of iter at which each response achieves best validation metric
@@ -168,10 +190,12 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
   
   ### Start BASIL -----------------------------------------------------------------
   while(max_valid_index < nlambda){
+    time.basil.start <- Sys.time()
+    snpnetLogger(sprintf('Start basil iteration %d.', iter), indent=2, log.time=time.basil.start)
 
     prev_valid_index = max_valid_index
-    print(paste("current maximum valid index is:",max_valid_index ))
-    print("Current validation C-Indices are:")
+    printf("Current maximum valid index is: %d\n",max_valid_index)
+    printf("Current validation C-Indices are:\n")
     print(Cval[, 1:max_valid_index])
 
     if(length(features.to.discard) > 0){
@@ -189,11 +213,14 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
     covs = c(covs, features.to.add)
     B_init = rbind(current_B, matrix(0.0, nrow=length(features.to.add), ncol=ncol(current_B)))
     
+    time.preparefeatures.start <- Sys.time()
+    snpnetLogger(sprintf('Preparing features for basil iteration %d.', iter), indent=2, log.time=time.preparefeatures.start)
     tmp.features.add <- prepareFeatures(pgen_train, vars, features.to.add, stats)
     phe_train[, colnames(tmp.features.add) := tmp.features.add]
     
     tmp.features.add <- prepareFeatures(pgen_val, vars, features.to.add, stats)
     phe_val[, colnames(tmp.features.add) := tmp.features.add]
+    snpnetLoggerTimeDiff(sprintf('End preparing features for basil iteration %d.', iter), time.preparefeatures.start, indent=3)
     
     rm(tmp.features.add)
     
@@ -204,11 +231,14 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
     # p.fac[1:num_not_penalized] = 0.0
     
     p.fac = p.factor[covs]
-    print(paste("Number of variables to be fitted is:",nrow(B_init)))
+    printf("Number of variables to be fitted is: %d. \n",nrow(B_init))
 
     X = as.matrix(select(phe_train, all_of(covs)))
 
+    time.basilfit.start <- Sys.time()
+    snpnetLogger(sprintf('Start fitting step for basil iteration %d.', iter), indent=2, log.time=time.basilfit.start)
     result = fit.fun(X,y_list, status_list, lambda_seq_local, lambda_seq_local*alpha, p.fac=p.fac, B0=B_init)
+    snpnetLoggerTimeDiff(sprintf('End fitting step for basil iteration %d.', iter), time.basilfit.start, indent=3)
     
     residual_all = result[['residual']]
     result = result[['result']]
@@ -216,8 +246,8 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
       rownames(result[[l]]) = covs
       colnames(result[[l]]) = c(responsid[!early_stop], responsid[early_stop])
     }
-    print(c("Colnames of results:", colnames(result[[1]])))
-    print(c("Colnames of current_B:", colnames(current_B)))
+    # print(c("Colnames of results:", colnames(result[[1]])))
+    # print(c("Colnames of current_B:", colnames(current_B)))
 
     residual_all = do.call(cbind, residual_all)
     residual_all = matrix(residual_all,nrow = length(phe_train$ID), ncol = K*num_lambda_per_iter, 
@@ -226,6 +256,8 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
     gradient = computeProduct(residual_all, genotype.pfile, vars, stats, configs, iter=iter)
     gradient = gradient[-which(rownames(gradient) %in% stats$excludeSNP), ,drop=F]
     
+    time.dnorm.start <- Sys.time()
+    snpnetLogger(sprintf('Computing dual-norm for basil iteration %d.', iter), indent=2, log.time=time.dnorm.start)
     dnorm_list = list()
     for(i in 1:length(result)){
         start = (i-1)*K+1
@@ -233,12 +265,13 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
         grad_local = gradient[,start:end, drop=F]
         dnorm_list[[i]] = get_dual_norm(grad_local, alpha)/p.factor[rownames(grad_local)]
     }
+    snpnetLoggerTimeDiff(sprintf('End computing dual-norm for basil iteration %d.', iter), time.dnorm.start, indent=3)
     
 
     max_score = sapply(dnorm_list, function(x){max(x[!names(x) %in% covs], na.rm=NA)})
-    print("current lambdas are:")
+    printf("current lambdas are:\n")
     print(lambda_seq_local)
-    print("current Maximum Scores are:")
+    printf("current Maximum Scores are:\n")
     print(max_score)
     # if all failed (first one fails)
     if(max_score[1] > lambda_seq_local[1]){
@@ -248,6 +281,8 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
     } else {
         local_valid = which.min(c(max_score <= lambda_seq_local, FALSE)) - 1 # number of valid this iteration
         
+        time.basilmetric.start <- Sys.time()
+        snpnetLogger(sprintf('Start metric evaluations for basil iteration %d.', iter), indent=2, log.time=time.basilmetric.start)
         X_val = as.matrix(select(phe_val, all_of(covs)))
         for(j in 1:local_valid){
             out[[max_valid_index+j]] = result[[j]]
@@ -264,6 +299,7 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
               ever_act_res_iter[[ind]][[max_valid_index+j]] = union(ever_act_res_iter[[ind]][[max_valid_index+j-1]], names(which(beta!=0)))
             }
         }
+        snpnetLoggerTimeDiff(sprintf('End metric evaluations for basil iteration %d.', iter), time.basilmetric.start, indent=3)
         # Save temp result to files
         save_list = list(Ctrain = Ctrain, Cval = Cval,  beta=out)
         save(save_list, 
@@ -271,21 +307,20 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
 
         last_Cval_this_iter = Cval[,(max_valid_index+local_valid)]
         #max_Cval_this_iter = apply(Cval[,(max_valid_index + 1):(max_valid_index+local_valid), drop=F], 1, max)
+        #early_stop = early_stop | (last_Cval_this_iter < max_cindex)
         early_stop = early_stop | (last_Cval_this_iter < max_cindex - 0.001)
-        #early_stop = early_stop | (last_Cval_this_iter < max_cindex - 0.01)
 
         if(all(early_stop)){
-          print("Early stop reached")
+          printf("Early stop for all responses reached.\n")
           break
         }
 
         # remove responses whose val Cindex decreases
         if(sum(1-early_stop) < K){
-          print("let's remove some response!")
+          printf("Remove responses that satisfy early stopping criteria.\n")
           keep_ind = !(current_response %in% names(which(early_stop)))
           print(c("The responses to be removed are", current_response[!keep_ind]))
           print(c("The responses left are ", current_response[keep_ind]))
-          print(c("The responses left are ", names(which(!early_stop))))
           gradient = gradient[,((local_valid - 1)*K+1):(local_valid*K), drop=F]
           gradient = gradient[, keep_ind, drop=F]
           responses = responses[keep_ind]
@@ -294,11 +329,11 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
           status_list =  status_list[keep_ind]
 
           current_B = result[[local_valid]][,(1:K), drop=F]
-          print(c("colnames of B before resposne removal:", colnames(current_B)))
+          # print(c("colnames of B before resposne removal:", colnames(current_B)))
           
           current_B = current_B[, keep_ind, drop=F]
 
-          print(c("colnames of B after resposne removal:", colnames(current_B)))
+          # print(c("colnames of B after resposne removal:", colnames(current_B)))
 
           
           # The ordering of the columns of current_B is specified by keep_ind
@@ -321,12 +356,12 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
           score =  dnorm_list[[local_valid]]
           current_B = result[[local_valid]]
         }
-        print(paste("current number of reponses", K))
-        print("current responses are")
-        print(current_response)
-        print(names(status))
-        print(colnames(current_B))
-        print(dim(current_B))
+        printf("current number of reponses is %d. \n", K)
+        # printf("Current responses are:\n")
+        # print(current_response)
+        # print(names(status))
+        # print(colnames(current_B))
+        # print(dim(current_B))
 
 
         ever.active = NULL
@@ -338,13 +373,14 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
           #ever.active = union(ever.active, ever_act_res_iter[[ids]][[best_lam_ind[ids]]])
           ever.active = union(ever.active, ever_act_res_iter[[ids]][[length(ever_act_res_iter[[ids]])]])
         }
-        print(paste("size of ever active set is ", length(ever.active)))
-        print(ever.active[1:20])
+        printf("size of ever active set is %d.\n", length(ever.active))
+        # print(ever.active[1:20])
         
         max_valid_index = max_valid_index + local_valid
         features.to.discard = setdiff(covs, ever.active)
-        print(paste("Number of features discarded in this iteration is", length(features.to.discard)))
+        printf("Number of inactive features discarded in this iteration is %d.\n", length(features.to.discard))
     }
+    snpnetLoggerTimeDiff(sprintf('End basil iteration %d.', iter), time.basil.start, indent=3)
     iter = iter + 1
 
   }
