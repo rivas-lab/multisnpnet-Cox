@@ -8,6 +8,7 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
                       alpha, p.factor,configs,
                       num_lambda_per_iter, num_to_add, fit.fun)
 {
+  time.start <- Sys.time()
   responsid = as.character(responsid)
   ### Get ids specified by psam --------------------------------------
   psamid = data.table::fread(paste0(genotype.pfile, '.psam'),
@@ -188,6 +189,7 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
   current_response = responsid
   num_not_penalized = length(covs)
   
+  KKT_failure_count = 0
   ### Start BASIL -----------------------------------------------------------------
   while(max_valid_index < nlambda){
     time.basil.start <- Sys.time()
@@ -278,8 +280,13 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
         features.to.discard = NULL
         current_B = result[[1]]
         score = dnorm_list[[1]]
+        KKT_failure_count  = KKT_failure_count + 1
     } else {
         local_valid = which.min(c(max_score <= lambda_seq_local, FALSE)) - 1 # number of valid this iteration
+
+        if(local_valid <= (num_lambda_per_iter/2)){
+          KKT_failure_count  =  KKT_failure_count  +  1
+        }
         
         time.basilmetric.start <- Sys.time()
         snpnetLogger(sprintf('Start metric evaluations for basil iteration %d.', iter), indent=2, log.time=time.basilmetric.start)
@@ -311,7 +318,7 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
         early_stop = early_stop | (last_Cval_this_iter < max_cindex - 0.001)
 
         if(all(early_stop)){
-          printf("Early stop for all responses reached.\n")
+          snpnetLoggerTimeDiff("Early stop for all responses reached.", time.start, indent=3)
           break
         }
 
@@ -380,6 +387,11 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
         features.to.discard = setdiff(covs, ever.active)
         printf("Number of inactive features discarded in this iteration is %d.\n", length(features.to.discard))
     }
+    if (KKT_failure_count >= 2){
+      num_to_add = num_to_add * 2
+      KKT_failure_count = 0
+    }
+    
     snpnetLoggerTimeDiff(sprintf('End basil iteration %d.', iter), time.basil.start, indent=3)
     iter = iter + 1
 
@@ -392,7 +404,7 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
 basil = function(genotype.pfile, phe.file, responsid, covs = NULL, 
                  nlambda = 100, lambda.min.ratio = 0.01, 
                  alpha=NULL, p.factor = NULL,configs = NULL,
-                 num_lambda_per_iter = 10, num_to_add = 200)
+                 num_lambda_per_iter = 10, num_to_add = 1500)
 {
   basil_base(genotype.pfile, phe.file, responsid, covs, 
                       nlambda, lambda.min.ratio, 
