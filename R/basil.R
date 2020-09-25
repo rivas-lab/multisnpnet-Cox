@@ -6,7 +6,7 @@
 basil_base = function(genotype.pfile, phe.file, responsid, covs, 
                       nlambda, lambda.min.ratio, 
                       alpha, p.factor,configs,
-                      num_lambda_per_iter, num_to_add, fit.fun)
+                      num_lambda_per_iter, num_to_add, max_num_to_add, fit.fun)
 {
   time.start <- Sys.time()
   responsid = as.character(responsid)
@@ -388,10 +388,10 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
         printf("Number of inactive features discarded in this iteration is %d.\n", length(features.to.discard))
     }
     if (KKT_failure_count >= 2){
-      num_to_add = num_to_add * 2
+      num_to_add = min(num_to_add * 2, max_num_to_add)
       KKT_failure_count = 0
     }
-    
+
     snpnetLoggerTimeDiff(sprintf('End basil iteration %d.', iter), time.basil.start, indent=3)
     iter = iter + 1
 
@@ -404,10 +404,10 @@ basil_base = function(genotype.pfile, phe.file, responsid, covs,
 basil = function(genotype.pfile, phe.file, responsid, covs = NULL, 
                  nlambda = 100, lambda.min.ratio = 0.01, 
                  alpha=NULL, p.factor = NULL,configs = NULL,
-                 num_lambda_per_iter = 10, num_to_add = 1500)
+                 num_lambda_per_iter = 10, num_to_add = 1500, max_num_to_add = 6000)
 {
   basil_base(genotype.pfile, phe.file, responsid, covs, 
                       nlambda, lambda.min.ratio, 
                       alpha, p.factor,configs,
-                      num_lambda_per_iter, num_to_add,  solve_aligned)
+                      num_lambda_per_iter, num_to_add, max_num_to_add, solve_aligned)
 }
