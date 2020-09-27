@@ -61,6 +61,17 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
     K0 <- K  # Number of initial response, this won't change
     
     ### Split the data according to the split column ---------------------------------
+    phe <- phe %>% filter(split %in% c("train", "val"))
+    
+    sigma <- numeric(length(covs))
+    names(sigma) <- covs
+    for (cov in covs)
+    {
+        mu <- mean(phe[[cov]])
+        # 0.6 is the sd of many of the snps 
+        sigma[cov] <- sd(phe[[cov]]) / 0.6
+        phe[[cov]] <- (phe[[cov]] - mu)/sigma[cov]
+    }
     phe_train <- as.data.table(phe %>% filter(split == "train"))
     phe_val <- as.data.table(phe %>% filter(split == "val"))
     
