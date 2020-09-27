@@ -80,3 +80,42 @@ get_dual_norm <- function(grad, alpha, tol = 1e-10)
     names(dnorm) <- rownames(grad)
     return(dnorm)
 }
+
+#' @export
+coxph_MKL <- function(X, y, status, beta0=NULL, standardize=T)
+{
+    if(any(is.na(X)))
+    {
+        stop("We do not allow NAs in the predictor matrix")
+    }
+
+    if(any(is.na(y)))
+    {
+        stop("We do not allow NAs in the time vector")
+    }
+
+    if(any(is.na(status)))
+    {
+        stop("We do not allow NAs in the status vector")
+    }
+
+    if(standardize)
+    {
+        mu = apply(X, 2, mean)
+        sigma  = apply(X, 2, sd)
+        X = sweep(X, 2, mu, FUN='-')
+        X = sweep(X, 2, sigma, FUN='/')
+    }
+    if(!is.null(beta0))
+    {
+        beta0 = as.matrix(beta0, ncol(X), 1)
+    }
+    result = solve_aligned(X, list(y), list(status), c(0.0), c(0.0), p.fac = NULL, 
+                B0 = beta0)
+    result = as.vector(result[["result"]][[1]])
+    if(standardize)
+    {
+        result  = result / sigma
+    }
+    result
+}
