@@ -171,6 +171,9 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
     }
     snpnetLoggerTimeDiff(sprintf("End metric evaluations for basil iteration %d.", 
         iter), time.basilmetric.start, indent = 3)
+
+    Ctrain_relaxed = Ctrain
+    Cval_relaxed = Cval
     
     ### Compute residuals and gradient-------------------------------
     residuals <- matrix(residuals, nrow = length(phe_train$ID), ncol = K, dimnames = list(paste(phe_train$ID, 
@@ -233,6 +236,9 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
         printf("Current maximum valid index is: %d\n", max_valid_index)
         printf("Current validation C-Indices are:\n")
         print(Cval[, 1:max_valid_index])
+
+        printf("Current validation (relaxed) C-Indices are:\n")
+        print(Cval_relaxed[, 1:max_valid_index])
         
         if (length(features.to.discard) > 0)
         {
@@ -352,6 +358,24 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
                 {
                   beta <- result[[j]][, i]
                   ind <- match(current_response[i], responsid)
+
+                  # relaxed Lasso fit
+                  if(TRUE)
+                  {
+                      nnz_entries = which(beta != 0)
+                      beta_local = beta[nnz_entries]
+                      X_local = X[, nnz_entries]
+                      relaxed_fit = coxph_MKL(X_local, y_list[[i]], status_list[[i]], beta0=beta_local, standardize=F)
+                      beta_local = beta
+                      beta_local[nnz_entries] = relaxed_fit
+                      relaxed_Ctrain = cindex::CIndex(X %*% beta_local, 
+                                                y_list[[i]], status_list[[i]])
+                      relaxed_Cval <- cindex::CIndex(X_val %*% beta_local, phe_val[[responses[i]]], 
+                                        phe_val[[status[i]]])
+                      Ctrain_relaxed[ind, max_valid_index + j] <- relaxed_Ctrain
+                      Cval_relaxed[ind, max_valid_index + j] <- relaxed_Cval
+
+                  }
                   Ctrain[ind, max_valid_index + j] <- cindex::CIndex(X %*% beta, 
                     y_list[[i]], status_list[[i]])
                   cval_tmp <- cindex::CIndex(X_val %*% beta, phe_val[[responses[i]]], 
