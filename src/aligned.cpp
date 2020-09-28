@@ -320,7 +320,7 @@ Rcpp::List fit_aligned(Rcpp::NumericMatrix X,
         }
         result[lam_ind] = Bfull;
         residual_result[lam_ind] = prob.Rget_residual(B.data());
-        std::cout << "Solution for the " <<  lam_ind+1 << "th lambda pair is obtained\n";
+        // std::cout << "Solution for the " <<  lam_ind+1 << "th lambda pair is obtained\n";
     }
     return Rcpp::List::create(Rcpp::Named("result") = result,
                               Rcpp::Named("residual") = residual_result);
