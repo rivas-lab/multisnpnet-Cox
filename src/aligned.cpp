@@ -195,21 +195,6 @@ void prox_l2(Eigen::Map<Eigen::MatrixXd> & B, const double step_size, double lam
     B =  ((B_row_norm.array() - lambda_2*step_size*penalty_factor.array())/(B_row_norm.array())).matrix().asDiagonal() * B;
 }
 
-void update_parameters(MatrixXd & B, const MatrixXd & grad, const MatrixXd &v, const double step_size,
-                       double lambda_1, double lambda_2, const VectorXd & penalty_factor,
-                       VectorXd & B_row_norm)
-{
-    int K = grad.cols();
-    B.noalias() = v - step_size*grad;
-    // Apply proximal operator here:
-    //Soft-thresholding
-    B = ((B.cwiseAbs().colwise() - lambda_1*step_size*penalty_factor).array().max(0) * B.array().sign()).matrix();
-    // Group soft-thresholding
-    // should be called the pmax of B_row_norm  and lambda_2*step_size
-    B_row_norm.noalias() = B.rowwise().norm().cwiseMax(lambda_2*step_size*penalty_factor);
-    B =  ((B_row_norm.array() - lambda_2*step_size*penalty_factor.array())/(B_row_norm.array())).matrix().asDiagonal() * B;
-}
-
 
 // [[Rcpp::export]]
 Rcpp::List fit_aligned(Rcpp::NumericMatrix X,
@@ -224,7 +209,8 @@ Rcpp::List fit_aligned(Rcpp::NumericMatrix X,
                        double step_size = 1.0,
                        int niter=2000,
                        double linesearch_beta = 1.1,
-                       double eps=1e-5 // convergence criteria
+                       double eps=5e-7, // convergence criteria
+                       bool debug=false
                        )
 {
     int N = X.rows();
@@ -285,8 +271,6 @@ Rcpp::List fit_aligned(Rcpp::NumericMatrix X,
                 prox_l2(B, step_size, lambda_2, pfac, B_row_norm);
 
 
-                //update_parameters(B, grad, v, step_size, lambda_1, lambda_2, pfac, B_row_norm);
-
                 double cox_val_next = prob.get_value_only(B.data());
 
                 if(!std::isfinite(cox_val_next)){
@@ -305,12 +289,15 @@ Rcpp::List fit_aligned(Rcpp::NumericMatrix X,
             }
 
 
-            if(value_change < 5e-7){
-                std::cout << "convergence based on value change reached in " << i <<" iterations\n";
-                std::cout << "current step size is " << step_size << std::endl;
-                gettimeofday(&end, NULL);
-                double delta  = ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
-                std::cout <<  "elapsed time is " << delta << " seconds" << std::endl;
+            if(value_change < eps){
+                if(debug){
+                    std::cout << "convergence based on value change reached in " << i <<" iterations\n";
+                    std::cout << "current step size is " << step_size << std::endl;
+                    gettimeofday(&end, NULL);
+                    double delta  = ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
+                    std::cout <<  "elapsed time is " << delta << " seconds" << std::endl;
+                }
+                
                 Rcpp::checkUserInterrupt();
                 break;
             }
@@ -321,11 +308,13 @@ Rcpp::List fit_aligned(Rcpp::NumericMatrix X,
             weight_old = weight_new;
 
             if (i != 0 && i % 100 == 0){
-                std::cout << "reached " << i << " iterations\n";
-                gettimeofday(&end, NULL);
-                double delta  = ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
-                std::cout <<  "elapsed time is " << delta  << " seconds" << std::endl;
-                std::cout << "current step size is " << step_size << std::endl;
+                if(debug){
+                    std::cout << "reached " << i << " iterations\n";
+                    gettimeofday(&end, NULL);
+                    double delta  = ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
+                    std::cout <<  "elapsed time is " << delta  << " seconds" << std::endl;
+                    std::cout << "current step size is " << step_size << std::endl;
+                }
                 Rcpp::checkUserInterrupt();
             }
         }
