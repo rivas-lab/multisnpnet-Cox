@@ -4,10 +4,8 @@
 #' @importFrom magrittr %>%
 #' @export
 basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambda.min.ratio, 
-    alpha, p.factor, configs, num_lambda_per_iter, num_to_add, max_num_to_add, fit.fun, relaxed.fit.fun)
+    alpha, p.factor, configs, num_lambda_per_iter, num_to_add, max_num_to_add, fit.fun)
     {
-    fit.relaxed <- if(is.null(relaxed.fit.fun)) FALSE else TRUE
-    relaxed.save <- if(fit.relaxed) list() else NULL
     time.start <- Sys.time()
     responsid <- as.character(responsid)
     ### Get ids specified by psam --------------------------------------
@@ -173,9 +171,6 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
     }
     snpnetLoggerTimeDiff(sprintf("End metric evaluations for basil iteration %d.", 
         iter), time.basilmetric.start, indent = 3)
-
-    Ctrain_relaxed = Ctrain
-    Cval_relaxed = Cval
     
     ### Compute residuals and gradient-------------------------------
     residuals <- matrix(residuals, nrow = length(phe_train$ID), ncol = K, dimnames = list(paste(phe_train$ID, 
@@ -238,9 +233,6 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
         printf("Current maximum valid index is: %d\n", max_valid_index)
         printf("Current validation C-Indices are:\n")
         print(Cval[, 1:max_valid_index])
-
-        printf("Current validation (relaxed) C-Indices are:\n")
-        print(Cval_relaxed[, 1:max_valid_index])
         
         if (length(features.to.discard) > 0)
         {
@@ -356,34 +348,10 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
             for (j in 1:local_valid)
             {
                 out[[max_valid_index + j]] <- result[[j]]
-                if(fit.relaxed)
-                {
-                    relaxed.save[[max_valid_index + j]] <- list()
-                }
-
                 for (i in 1:K)
                 {
                   beta <- result[[j]][, i]
                   ind <- match(current_response[i], responsid)
-
-                  # relaxed Lasso fit
-                  if(fit.relaxed)
-                  {
-                      nnz_entries = which(beta != 0)
-                      beta_local = beta[nnz_entries]
-                      X_local = X[, nnz_entries]
-                      relaxed_fit = relaxed.fit.fun(X_local, y_list[[i]], status_list[[i]], beta0=beta_local, standardize=F)
-                      beta_local = beta
-                      beta_local[nnz_entries] = relaxed_fit
-                      relaxed_Ctrain = cindex::CIndex(X %*% beta_local, 
-                                                y_list[[i]], status_list[[i]])
-                      relaxed_Cval <- cindex::CIndex(X_val %*% beta_local, phe_val[[responses[i]]], 
-                                        phe_val[[status[i]]])
-                      Ctrain_relaxed[ind, max_valid_index + j] <- relaxed_Ctrain
-                      Cval_relaxed[ind, max_valid_index + j] <- relaxed_Cval
-                      relaxed.save[[max_valid_index + j]][[current_response[i]]] <- relaxed_fit
-
-                  }
                   Ctrain[ind, max_valid_index + j] <- cindex::CIndex(X %*% beta, 
                     y_list[[i]], status_list[[i]])
                   cval_tmp <- cindex::CIndex(X_val %*% beta, phe_val[[responses[i]]], 
@@ -402,13 +370,6 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
                 iter), time.basilmetric.start, indent = 3)
             # Save temp result to files
             save_list <- list(Ctrain = Ctrain, Cval = Cval, beta = out)
-                        if(fit.relaxed)
-            {
-                relaxed.save[[max_valid_index + j]][['Ctrain']] <- Ctrain_relaxed
-                relaxed.save[[max_valid_index + j]][['Cval']] <- Cval_relaxed
-                save_list[['relaxed']] <- relaxed.save
-            }
-
             save(save_list, file = file.path(configs[["save.dir"]], paste0("saveresult", 
                 iter, ".RData")))
             
@@ -516,5 +477,5 @@ basil <- function(genotype.pfile, phe.file, responsid, covs = NULL, nlambda = 10
     {
     basil_base(genotype.pfile, phe.file, responsid, covs, nlambda, lambda.min.ratio, 
         alpha, p.factor, configs, num_lambda_per_iter, num_to_add, max_num_to_add, 
-        solve_aligned, coxph_MKL)
+        solve_aligned)
 }
