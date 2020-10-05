@@ -212,13 +212,7 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
     ever.active <- covs
     best_lam_ind <- rep(1, K)  # keep track of iter at which each response achieves best validation metric
     names(best_lam_ind) <- responsid
-    ever_act_res_iter <- vector("list", K)  # keep track of iter at which each response achieves best validation metric
-    names(ever_act_res_iter) <- responsid
-    for (i in 1:K)
-    {
-        ever_act_res_iter[[responsid[i]]] <- list()
-        ever_act_res_iter[[responsid[i]]][[1]] <- covs
-    }
+
     current_response <- responsid
     num_not_penalized <- length(covs)
     
@@ -287,7 +281,7 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
         for (l in 1:length(result))
         {
             rownames(result[[l]]) <- covs
-            colnames(result[[l]]) <- c(responsid[!early_stop], responsid[early_stop])
+            colnames(result[[l]]) <- responsid
         }
         # print(c('Colnames of results:', colnames(result[[1]]))) print(c('Colnames of
         # current_B:', colnames(current_B)))
@@ -362,8 +356,8 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
                     max_cindex[ind] <- cval_tmp
                     best_lam_ind[ind] <- max_valid_index + j
                   }
-                  ever_act_res_iter[[ind]][[max_valid_index + j]] <- union(ever_act_res_iter[[ind]][[max_valid_index + 
-                    j - 1]], names(which(beta != 0)))
+
+
                 }
             }
             snpnetLoggerTimeDiff(sprintf("End metric evaluations for basil iteration %d.", 
@@ -386,69 +380,18 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
                 break
             }
             
-            # remove responses whose val Cindex decreases
-            if (sum(1 - early_stop) < K)
+ 
+            score <- dnorm_list[[local_valid]]
+            current_B <- result[[local_valid]]
+            new.active = NULL
+            for (j in 1:local_valid)
             {
-                printf("Remove responses that satisfy early stopping criteria.\n")
-                keep_ind <- !(current_response %in% names(which(early_stop)))
-                print(c("The responses to be removed are", current_response[!keep_ind]))
-                print(c("The responses left are ", current_response[keep_ind]))
-                gradient <- gradient[, ((local_valid - 1) * K + 1):(local_valid * 
-                  K), drop = F]
-                gradient <- gradient[, keep_ind, drop = F]
-                responses <- responses[keep_ind]
-                status <- status[keep_ind]
-                y_list <- y_list[keep_ind]
-                status_list <- status_list[keep_ind]
-                
-                current_B <- result[[local_valid]][, (1:K), drop = F]
-                # print(c('colnames of B before resposne removal:', colnames(current_B)))
-                
-                current_B <- current_B[, keep_ind, drop = F]
-                
-                # print(c('colnames of B after resposne removal:', colnames(current_B)))
-                
-                
-                # The ordering of the columns of current_B is specified by keep_ind
-                for (ids in responsid[early_stop])
-                {
-                  # tmp = out[[best_lam_ind[ids]]][, ids]
-                  tmp <- out[[length(ever_act_res_iter[[ids]])]][, ids]
-                  tmp <- tmp[tmp != 0]
-                  current_B <- cbind(current_B, 0)
-                  current_B[names(tmp), ncol(current_B)] <- tmp
-                }
-                
-                print(c("colnames of B after binding previous resposnes:", colnames(current_B)))
-                
-                K <- sum(1 - early_stop)
-                current_response <- responsid[!early_stop]
-                score <- get_dual_norm(gradient, alpha)/p.factor[rownames(gradient)]
-                
-                
-            } else
-            {
-                score <- dnorm_list[[local_valid]]
-                current_B <- result[[local_valid]]
+                new.active  <- union(new.active, which(apply(abs(result[[j]]), 1, function(y){sum(y)!=0})))
             }
-            printf("current number of reponses is %d. \n", K)
-            # printf('Current responses are:\n') print(current_response)
-            # print(names(status)) print(colnames(current_B)) print(dim(current_B))
+            ever.active <- union(ever.active, new.active)
             
-            
-            ever.active <- NULL
-            for (ids in responsid[!early_stop])
-            {
-                ever.active <- union(ever.active, ever_act_res_iter[[ids]][[max_valid_index + 
-                  local_valid]])
-            }
-            for (ids in responsid[early_stop])
-            {
-                # ever.active = union(ever.active, ever_act_res_iter[[ids]][[best_lam_ind[ids]]])
-                ever.active <- union(ever.active, ever_act_res_iter[[ids]][[length(ever_act_res_iter[[ids]])]])
-            }
             printf("size of ever active set is %d.\n", length(ever.active))
-            # print(ever.active[1:20])
+            print(ever.active[1:20])
             
             max_valid_index <- max_valid_index + local_valid
             features.to.discard <- setdiff(covs, ever.active)
