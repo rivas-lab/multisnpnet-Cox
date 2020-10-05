@@ -386,7 +386,7 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
             new.active = NULL
             for (j in 1:local_valid)
             {
-                new.active  <- union(new.active, which(apply(abs(result[[j]]), 1, function(y){sum(y)!=0})))
+                new.active  <- union(new.active, names(which(apply(abs(result[[j]]), 1, function(y){sum(y)!=0}))))
             }
             ever.active <- union(ever.active, new.active)
             
