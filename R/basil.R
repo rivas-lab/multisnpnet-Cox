@@ -32,10 +32,10 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
     for (i in 1:length(status))
     {
         s <- status[i]
-        num_event <- sum(phe %>% filter(split == "train") %>% select(all_of(s)))
-        printf("Code: %s, number of events in training set: %-7d", responsid[i], 
+        num_event <- sum(phe %>% filter(split == "val") %>% select(all_of(s)))
+        printf("Code: %s, number of events in validation set: %-7d", responsid[i], 
             num_event)
-        if (num_event < 100)
+        if (num_event < 30)
         {
             id_to_remove <- c(id_to_remove, responsid[i])
             printf("Too few events, removed!")
@@ -45,7 +45,10 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
     
     status_to_remove <- paste0("coxnet_status_f.", id_to_remove, ".0.0")
     response_to_remove <- paste0("coxnet_y_f.", id_to_remove, ".0.0")
-    phe <- select(phe, -all_of(c(status_to_remove, response_to_remove)))
+    if (length(id_to_remove) > 0)
+    {
+        phe <- select(phe, -all_of(c(status_to_remove, response_to_remove)))
+    }
     
     status <- status[!(responsid %in% id_to_remove)]
     responses <- responses[!(responsid %in% id_to_remove)]  # bad name, this is the name of the y column in phe
