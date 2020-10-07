@@ -75,7 +75,11 @@ get_residual <- function(X, y_list, status_list, B)
 
 #' @export
 get_dual_norm <- function(grad, alpha, tol = 1e-10)
-{
+{   
+    if(is.null(dim(grad)))
+    {
+        grad = as.matrix(grad, ncol=1)
+    }
     dnorm <- compute_dual_norm(grad, alpha, tol)
     names(dnorm) <- rownames(grad)
     return(dnorm)
