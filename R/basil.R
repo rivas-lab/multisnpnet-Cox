@@ -42,10 +42,19 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
         }
         printf("\n")
     }
+
+    if(length(id_to_remove) == length(responsid))
+    {
+        warning("None of the response has sufficient events to proceed")
+        return(0)
+    }
     
     status_to_remove <- paste0("coxnet_status_f.", id_to_remove, ".0.0")
     response_to_remove <- paste0("coxnet_y_f.", id_to_remove, ".0.0")
-    phe <- select(phe, -all_of(c(status_to_remove, response_to_remove)))
+    if(!is.null(id_to_remove))
+    {
+        phe <- select(phe, -all_of(c(status_to_remove, response_to_remove)))
+    }
     
     status <- status[!(responsid %in% id_to_remove)]
     responses <- responses[!(responsid %in% id_to_remove)]  # bad name, this is the name of the y column in phe
@@ -73,6 +82,7 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
         # 0.6 is the sd of many of the snps 
         sigma[cov] <- sd(phe[[cov]]) / 0.6
         phe[[cov]] <- (phe[[cov]] - mu)/sigma[cov]
+        phe_test[[cov]] <- (phe_test[[cov]] - mu)/sigma[cov]
     }
     phe_train <- as.data.table(phe %>% filter(split == "train"))
     phe_val <- as.data.table(phe %>% filter(split == "val"))
@@ -391,7 +401,8 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
             # (last_Cval_this_iter < max_cindex)
             early_stop <- early_stop | (last_Cval_this_iter < max_cindex)
             
-            if (all(early_stop))
+            # Don't stop too early
+            if (all(early_stop) && length(ever.active) > 3000)
             {
                 snpnetLoggerTimeDiff("Early stop for all responses reached.", time.start, 
                   indent = 3)

@@ -290,7 +290,7 @@ Rcpp::List fit_aligned(Rcpp::NumericMatrix X,
                 double cox_val_next = prob.get_value_only(B.data());
 
                 if(!std::isfinite(cox_val_next)){
-                    stop = false;
+                    stop = (step_size < 1e-9);
                 } else {
                     rhs_ls = cox_val + (grad.array() * (B - v).array()).sum() + (B-v).squaredNorm()/(2*step_size);
                     stop = (cox_val_next <= rhs_ls);
