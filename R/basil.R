@@ -29,10 +29,13 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
     
     ### Filter out responses with too few events --------------------------------------
     id_to_remove <- NULL
+    num_event_train <- numeric(length(responsid))
+    names(num_event_train) <- responsid
     for (i in 1:length(status))
     {
         s <- status[i]
         num_event <- sum(phe %>% filter(split == "val") %>% select(all_of(s)))
+        num_event_train[i] <- sum(phe %>% filter(split == "train") %>% select(all_of(s)))
         printf("Code: %s, number of events in validation set: %-7d", responsid[i], 
             num_event)
         if (num_event < 30)
@@ -41,6 +44,12 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
             printf("Too few events, removed!")
         }
         printf("\n")
+    }
+
+    if(length(id_to_remove) == length(responsid))
+    {
+        warning("None of the response has sufficient events to proceed")
+        return(0)
     }
     
     status_to_remove <- paste0("coxnet_status_f.", id_to_remove, ".0.0")
@@ -64,6 +73,7 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
     K0 <- K  # Number of initial response, this won't change
     
     ### Split the data according to the split column ---------------------------------
+    phe_test <- phe %>% filter(split == "test")
     phe <- phe %>% filter(split %in% c("train", "val"))
     
     sigma <- numeric(length(covs))
@@ -74,6 +84,7 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
         # 0.6 is the sd of many of the snps 
         sigma[cov] <- sd(phe[[cov]]) / 0.6
         phe[[cov]] <- (phe[[cov]] - mu)/sigma[cov]
+        phe_test[[cov]] <- (phe_test[[cov]] - mu)/sigma[cov]
     }
     phe_train <- as.data.table(phe %>% filter(split == "train"))
     phe_val <- as.data.table(phe %>% filter(split == "val"))
@@ -84,8 +95,10 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
     ### --------------------------------------------
     Ctrain <- matrix(-1, nrow = K, ncol = nlambda)
     Cval <- matrix(-1, nrow = K, ncol = nlambda)
+    Ctest <- matrix(-1, nrow = K, ncol = nlambda)
     rownames(Ctrain) <- responsid
     rownames(Cval) <- responsid
+    rownames(Ctest) <- responsid
     
     
     ### Read genotype files, copied from snpnet
@@ -101,6 +114,8 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
         sample_subset = match(phe_train$ID, psamid))
     pgen_val <- pgenlibr::NewPgen(paste0(genotype.pfile, ".pgen"), pvar = pvar, sample_subset = match(phe_val$ID, 
         psamid))
+
+    pgen_test <- pgenlibr::NewPgen(paste0(genotype.pfile, ".pgen"), pvar = pvar, sample_subset = match(phe_test$ID, psamid))
     
     
     pgenlibr::ClosePvar(pvar)
@@ -165,12 +180,15 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
     snpnetLogger(sprintf("Start metric evaluations for basil iteration %d.", iter), 
         indent = 2, log.time = time.basilmetric.start)
     X_val <- as.matrix(select(phe_val, all_of(covs)))
+    X_test <- as.matrix(select(phe_test, all_of(covs)))
     pred_train <- X %*% result[[1]]
     pred_val <- X_val %*% result[[1]]
+    pred_test <- X_test %*% result[[1]]
     for (i in 1:K)
     {
         Ctrain[i, 1] <- cindex::CIndex(pred_train[, i], y_list[[i]], status_list[[i]])
         Cval[i, 1] <- cindex::CIndex(pred_val[, i], phe_val[[responses[i]]], phe_val[[status[i]]])
+        Ctest[i, 1] <- cindex::CIndex(pred_test[, i], phe_test[[responses[i]]], phe_test[[status[i]]])
     }
     snpnetLoggerTimeDiff(sprintf("End metric evaluations for basil iteration %d.", 
         iter), time.basilmetric.start, indent = 3)
@@ -234,13 +252,14 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
         
         prev_valid_index <- max_valid_index
         printf("Current maximum valid index is: %d\n", max_valid_index)
-        printf("Current validation C-Indices are:\n")
-        print(Cval[, 1:max_valid_index])
+        printf("Current test C-Indices are:\n")
+        print(Ctest[, 1:max_valid_index])
         
         if (length(features.to.discard) > 0)
         {
             phe_train[, `:=`((features.to.discard), NULL)]
             phe_val[, `:=`((features.to.discard), NULL)]
+            phe_test[, `:=`((features.to.discard), NULL)]
             current_B <- current_B[!covs %in% features.to.discard, , drop = F]
             covs <- covs[!covs %in% features.to.discard]
         }
@@ -263,6 +282,9 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
         phe_val[, `:=`(colnames(tmp.features.add), tmp.features.add)]
         snpnetLoggerTimeDiff(sprintf("End preparing features for basil iteration %d.", 
             iter), time.preparefeatures.start, indent = 3)
+        
+        tmp.features.add <- prepareFeatures(pgen_test, vars, features.to.add, stats)
+        phe_test[, `:=`(colnames(tmp.features.add), tmp.features.add)]
         
         rm(tmp.features.add)
         
@@ -348,6 +370,7 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
             snpnetLogger(sprintf("Start metric evaluations for basil iteration %d.", 
                 iter), indent = 2, log.time = time.basilmetric.start)
             X_val <- as.matrix(select(phe_val, all_of(covs)))
+            X_test <- as.matrix(select(phe_test, all_of(covs)))
             for (j in 1:local_valid)
             {
                 out[[max_valid_index + j]] <- result[[j]]
@@ -367,12 +390,15 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
                   }
                   ever_act_res_iter[[ind]][[max_valid_index + j]] <- union(ever_act_res_iter[[ind]][[max_valid_index + 
                     j - 1]], names(which(beta != 0)))
+
+                Ctest[ind, max_valid_index + j] <- cindex::CIndex(X_test %*% beta, phe_test[[responses[i]]], 
+                    phe_test[[status[i]]])
                 }
             }
             snpnetLoggerTimeDiff(sprintf("End metric evaluations for basil iteration %d.", 
                 iter), time.basilmetric.start, indent = 3)
             # Save temp result to files
-            save_list <- list(Ctrain = Ctrain, Cval = Cval, beta = out)
+            save_list <- list(Ctrain = Ctrain, Cval = Cval, Ctest=Ctest, beta = out, num_event_train=num_event_train)
             save(save_list, file = file.path(configs[["save.dir"]], paste0("saveresult", 
                 iter, ".RData")))
             
