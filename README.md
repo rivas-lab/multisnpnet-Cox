@@ -27,3 +27,39 @@ Once dependencies are installed, run the following in R
 ```r
 devtools::install_github("rivas-lab/multisnpnet-Cox")
 ```
+### Example of Usage
+```r
+library(mrcox)
+# Simulate some data
+n = 1000
+p = 5000
+X = matrix(rnorm(n*p), n, p)
+y1 = rexp(n) * exp(X %*% rbinom(p, 1, 0.1))
+y2 = rexp(n) * exp(X %*% rbinom(p, 1, 0.1))
+s1 = rbinom(n, 1, 0.3)
+s2 = rbinom(n, 1, 0.3)
+y_list = list(y1, y2)
+s_list = list(s1, s2)
+
+# Initialize coefficient matrix at 0
+B = matrix(0.0, p, 2)
+
+# Compute residual at B
+res = get_residual(X, y_list, s_list, B)
+
+# Compute the gradient of B
+g = t(X) %*% res
+
+# Get the dual norm and lambda sequence
+alpha = sqrt(2)
+dnorm = get_dual_norm(g, alpha)
+lambda_max = max(dnorm)
+lambda_min = 0.001 * lambda_max
+lambda_seq = exp(seq(from = log(lambda_max), to = log(lambda_min), length.out = 100))
+
+# Fit a model
+fit = solve_aligned(X, y_list, s_list, lambda_seq, lambda_seq * alpha)
+fit = fit[['result']] # fit also contains the residuals at each solution
+
+
+```
