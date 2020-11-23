@@ -7,7 +7,7 @@ where <img src="https://latex.codecogs.com/gif.latex?\inline&space;\beta_k" titl
 For genetics data in [Plink2](https://www.cog-genomics.org/plink/2.0/) format, we provide a screening procedure similar to the one in [this paper](https://journals.plos.org/plosgenetics/article?rev=2&id=10.1371/journal.pgen.1009141).
 
 ## Installation
-Currently mrcox only supports linux and intel processors. It requires Intel's Math Kernel Library (MKL). I suspect you can still get it to run on AMD processors but performance could be significantly worse. To install MKL:
+Currently mrcox only supports linux and 64-bit intel processors. It requires Intel's Math Kernel Library (MKL). I suspect you can still get it to run on AMD processors but performance could be significantly worse. To install MKL:
 1. Register and download MKL from https://software.intel.com/content/www/us/en/develop/tools/math-kernel-library/choose-download/linux.html
 2. Under Choose Product to Download, select Intel Math Kernel Library for linux
 3. Untar the downloaded file, run `./install.sh`. After installation is done, `source intel/mkl/bin/mklvars.sh intel64`. 
