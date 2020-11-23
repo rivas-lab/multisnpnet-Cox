@@ -306,11 +306,8 @@ Rcpp::List fit_aligned(Rcpp::NumericMatrix X,
 
 
             if(value_change < 5e-7){
-                std::cout << "convergence based on value change reached in " << i <<" iterations\n";
-                std::cout << "current step size is " << step_size << std::endl;
                 gettimeofday(&end, NULL);
                 double delta  = ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
-                std::cout <<  "elapsed time is " << delta << " seconds" << std::endl;
                 Rcpp::checkUserInterrupt();
                 break;
             }
@@ -321,17 +318,13 @@ Rcpp::List fit_aligned(Rcpp::NumericMatrix X,
             weight_old = weight_new;
 
             if (i != 0 && i % 100 == 0){
-                std::cout << "reached " << i << " iterations\n";
                 gettimeofday(&end, NULL);
                 double delta  = ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6;
-                std::cout <<  "elapsed time is " << delta  << " seconds" << std::endl;
-                std::cout << "current step size is " << step_size << std::endl;
                 Rcpp::checkUserInterrupt();
             }
         }
         result[lam_ind] = Bfull;
         residual_result[lam_ind] = prob.Rget_residual(B.data());
-        std::cout << "Solution for the " <<  lam_ind+1 << "th lambda pair is obtained\n";
     }
     return Rcpp::List::create(Rcpp::Named("result") = result,
                               Rcpp::Named("residual") = residual_result);
