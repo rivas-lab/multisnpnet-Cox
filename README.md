@@ -11,7 +11,8 @@ Currently mrcox only supports linux and 64-bit intel processors. It requires Int
 1. Register and download MKL from https://software.intel.com/content/www/us/en/develop/tools/math-kernel-library/choose-download/linux.html
 2. Under Choose Product to Download, select Intel Math Kernel Library for linux
 3. Untar the downloaded file, run `./install.sh`. After installation is done, `source intel/mkl/bin/mklvars.sh intel64`. 
-Now install the R dependencies of mrcox (Rcpp, RcppEigen). 
+
+You will also need to install the R dependencies of mrcox (Rcpp, RcppEigen). 
 ### Additional dependencies for genetics data
 1. [zstd(>=1.4.4)](https://github.com/facebook/zstd). It can be built from source or simply available from [conda](https://anaconda.org/conda-forge/zstd), [pip](https://pypi.org/project/zstd/) or [brew](https://formulae.brew.sh/formula/zstd)
 2. [Plink2](https://www.cog-genomics.org/plink/2.0/)
