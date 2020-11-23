@@ -13,7 +13,7 @@ Currently mrcox only supports linux and 64-bit intel processors. It requires Int
 3. Untar the downloaded file, run `./install.sh`. After installation is done, `source intel/mkl/bin/mklvars.sh intel64`. 
 Now install the R dependencies of mrcox (Rcpp, RcppEigen). 
 ### Additional dependencies for genetics data
-1.[zstd(>=1.4.4)](https://github.com/facebook/zstd). It can be built from source or simply available from [conda](https://anaconda.org/conda-forge/zstd), [pip](https://pypi.org/project/zstd/) or [brew](https://formulae.brew.sh/formula/zstd)
+1. [zstd(>=1.4.4)](https://github.com/facebook/zstd). It can be built from source or simply available from [conda](https://anaconda.org/conda-forge/zstd), [pip](https://pypi.org/project/zstd/) or [brew](https://formulae.brew.sh/formula/zstd)
 2. [Plink2](https://www.cog-genomics.org/plink/2.0/)
 3. 
 ```r
