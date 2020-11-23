@@ -22,3 +22,7 @@ install_github("chrchang/plink-ng", subdir="/2.0/cindex")
 install_github("chrchang/plink-ng", subdir="/2.0/pgenlibr")
 ```
 
+Once dependencies are installed, run the following in R
+```r
+devtools::install_github("rivas-lab/multisnpnet-Cox")
+```
