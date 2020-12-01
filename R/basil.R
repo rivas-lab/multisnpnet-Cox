@@ -84,6 +84,7 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
         phe[[cov]] <- (phe[[cov]] - mu)/sigma[cov]
         phe_test[[cov]] <- (phe_test[[cov]] - mu)/sigma[cov]
     }
+    phe_test <- as.data.table(phe_test)
     phe_train <- as.data.table(phe %>% filter(split == "train"))
     phe_val <- as.data.table(phe %>% filter(split == "val"))
     
@@ -249,9 +250,9 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
         
         if (length(features.to.discard) > 0)
         {
-            phe_train[, `:=`((features.to.discard), NULL)]
-            phe_val[, `:=`((features.to.discard), NULL)]
-            phe_test[, `:=`((features.to.discard), NULL)]
+            phe_train[, (features.to.discard) := NULL]
+            phe_val[, (features.to.discard) := NULL]
+            phe_test[, (features.to.discard) := NULL]
             current_B <- current_B[!covs %in% features.to.discard, , drop = F]
             covs <- covs[!covs %in% features.to.discard]
         }
@@ -268,13 +269,13 @@ basil_base <- function(genotype.pfile, phe.file, responsid, covs, nlambda, lambd
         snpnetLogger(sprintf("Preparing features for basil iteration %d.", iter), 
             indent = 2, log.time = time.preparefeatures.start)
         tmp.features.add <- prepareFeatures(pgen_train, vars, features.to.add, stats)
-        phe_train[, `:=`(colnames(tmp.features.add), tmp.features.add)]
+        phe_train[, colnames(tmp.features.add) := tmp.features.add]
         
         tmp.features.add <- prepareFeatures(pgen_val, vars, features.to.add, stats)
-        phe_val[, `:=`(colnames(tmp.features.add), tmp.features.add)]
+        phe_val[, colnames(tmp.features.add) := tmp.features.add]
 
         tmp.features.add <- prepareFeatures(pgen_test, vars, features.to.add, stats)
-        phe_test[, `:=`(colnames(tmp.features.add), tmp.features.add)]
+        phe_test[, colnames(tmp.features.add) := tmp.features.add]
         snpnetLoggerTimeDiff(sprintf("End preparing features for basil iteration %d.", 
             iter), time.preparefeatures.start, indent = 3)
         
