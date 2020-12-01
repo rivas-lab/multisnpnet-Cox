@@ -8,8 +8,8 @@
 using namespace Rcpp;
 
 // fit_aligned
-Rcpp::List fit_aligned(Rcpp::NumericMatrix X, Rcpp::NumericMatrix status, Rcpp::IntegerMatrix rankmin, Rcpp::IntegerMatrix rankmax, Rcpp::List order_list, Rcpp::NumericMatrix B0, Rcpp::NumericVector lambda_1_all, Rcpp::NumericVector lambda_2_all, VectorXd pfac, double step_size, int niter, double linesearch_beta, double eps);
-RcppExport SEXP _mrcox_fit_aligned(SEXP XSEXP, SEXP statusSEXP, SEXP rankminSEXP, SEXP rankmaxSEXP, SEXP order_listSEXP, SEXP B0SEXP, SEXP lambda_1_allSEXP, SEXP lambda_2_allSEXP, SEXP pfacSEXP, SEXP step_sizeSEXP, SEXP niterSEXP, SEXP linesearch_betaSEXP, SEXP epsSEXP) {
+Rcpp::List fit_aligned(Rcpp::NumericMatrix X, Rcpp::NumericMatrix status, Rcpp::IntegerMatrix rankmin, Rcpp::IntegerMatrix rankmax, Rcpp::List order_list, Rcpp::NumericMatrix B0, Rcpp::NumericVector lambda_1_all, Rcpp::NumericVector lambda_2_all, VectorXd pfac, double step_size, int niter, double linesearch_beta);
+RcppExport SEXP _mrcox_fit_aligned(SEXP XSEXP, SEXP statusSEXP, SEXP rankminSEXP, SEXP rankmaxSEXP, SEXP order_listSEXP, SEXP B0SEXP, SEXP lambda_1_allSEXP, SEXP lambda_2_allSEXP, SEXP pfacSEXP, SEXP step_sizeSEXP, SEXP niterSEXP, SEXP linesearch_betaSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -25,8 +25,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< double >::type step_size(step_sizeSEXP);
     Rcpp::traits::input_parameter< int >::type niter(niterSEXP);
     Rcpp::traits::input_parameter< double >::type linesearch_beta(linesearch_betaSEXP);
-    Rcpp::traits::input_parameter< double >::type eps(epsSEXP);
-    rcpp_result_gen = Rcpp::wrap(fit_aligned(X, status, rankmin, rankmax, order_list, B0, lambda_1_all, lambda_2_all, pfac, step_size, niter, linesearch_beta, eps));
+    rcpp_result_gen = Rcpp::wrap(fit_aligned(X, status, rankmin, rankmax, order_list, B0, lambda_1_all, lambda_2_all, pfac, step_size, niter, linesearch_beta));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -61,7 +60,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_mrcox_fit_aligned", (DL_FUNC) &_mrcox_fit_aligned, 13},
+    {"_mrcox_fit_aligned", (DL_FUNC) &_mrcox_fit_aligned, 12},
     {"_mrcox_compute_dual_norm", (DL_FUNC) &_mrcox_compute_dual_norm, 3},
     {"_mrcox_compute_residual", (DL_FUNC) &_mrcox_compute_residual, 6},
     {NULL, NULL, 0}

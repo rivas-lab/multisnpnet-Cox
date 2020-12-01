@@ -223,8 +223,7 @@ Rcpp::List fit_aligned(Rcpp::NumericMatrix X,
                        VectorXd pfac,
                        double step_size = 1.0,
                        int niter=2000,
-                       double linesearch_beta = 1.1,
-                       double eps=1e-5 // convergence criteria
+                       double linesearch_beta = 1.1
                        )
 {
     int N = X.rows();
@@ -257,6 +256,8 @@ Rcpp::List fit_aligned(Rcpp::NumericMatrix X,
     double weight_old, weight_new;
     double rhs_ls;
     struct timeval start, end;
+    int num_iter;
+    bool nan_stop = false;
 
     Rcpp::List result(nlambda);
     Rcpp::List residual_result(nlambda);
@@ -291,6 +292,10 @@ Rcpp::List fit_aligned(Rcpp::NumericMatrix X,
 
                 if(!std::isfinite(cox_val_next)){
                     stop = (step_size < 1e-9);
+                    if(stop){
+                        nan_stop = true;
+                        goto terminate_nan;
+                    }
                 } else {
                     rhs_ls = cox_val + (grad.array() * (B - v).array()).sum() + (B-v).squaredNorm()/(2*step_size);
                     stop = (cox_val_next <= rhs_ls);
@@ -299,6 +304,7 @@ Rcpp::List fit_aligned(Rcpp::NumericMatrix X,
 
                 if (stop){
                     value_change = abs(cox_val_next - cox_val)/fmax(1.0, abs(cox_val));
+                    num_iter = i;
                     break;
                 }
                 step_size /= linesearch_beta;
@@ -325,6 +331,10 @@ Rcpp::List fit_aligned(Rcpp::NumericMatrix X,
         }
         result[lam_ind] = Bfull;
         residual_result[lam_ind] = prob.Rget_residual(B.data());
+        std::cout << "Solution for the " << lam_ind + 1 << "th lambda pair is obtained, number of iterations: " << num_iter <<std::endl;
+    }
+    if(nan_stop){
+        terminate_nan:Rf_warning("Proximal gradient did not converge for some lambdas, return finite results only\n");
     }
     return Rcpp::List::create(Rcpp::Named("result") = result,
                               Rcpp::Named("residual") = residual_result);
