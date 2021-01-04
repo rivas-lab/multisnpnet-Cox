@@ -1,10 +1,12 @@
 # Multi-snpnet-Cox (mrcox) Efficient Group-Sparse Lasso solver for multi-response Cox model
 This package provide functions that solve the following multi-response, group-sparse regularized Cox regression:
-<img src="https://latex.codecogs.com/gif.latex?\min_{\beta_1,\cdots,&space;\beta_K}&space;\sum_{k=1}^K&space;\frac{1}{n_k}&space;\left[\sum_{i:O_i^k&space;=&space;1}&space;-\beta_k^T&space;X_i&space;&plus;&space;\log&space;\left(\sum_{j:T^k_j&space;\ge&space;T^k_i}&space;\exp(\beta_k^T&space;X_j)\right)\right]&space;&plus;&space;\lambda&space;\left(&space;\sum_{j=1}^d&space;\|\beta^j\|_1&space;&plus;&space;\alpha&space;\|\beta^j\|_2&space;\right)." title="\min_{\beta_1,\cdots, \beta_K} \sum_{k=1}^K \frac{1}{n_k} \left[\sum_{i:O_i^k = 1} -\beta_k^T X_i + \log \left(\sum_{j:T^k_j \ge T^k_i} \exp(\beta_k^T X_j)\right)\right] + \lambda \left( \sum_{j=1}^d \|\beta^j\|_1 + \alpha \|\beta^j\|_2 \right)." />,
+<img src="https://latex.codecogs.com/gif.latex?\min_{\beta_1,\cdots,&space;\beta_K}&space;\sum_{k=1}^K&space;\frac{1}{n_k}&space;\left[\sum_{i:O_i^k&space;=&space;1}&space;-\beta_k^T&space;X_i&space;&plus;&space;\log&space;\left(\sum_{j:T^k_j&space;\ge&space;T^k_i}&space;\exp(\beta_k^T&space;X_j)\right)\right]&space;&plus;&space;\lambda&space;\left(&space;\sum_{j=1}^d&space;\|\beta^j\|_1&space;&plus;&space;\alpha&space;\|\beta^j\|_2&space;\right)." title="\min_{\beta_1,\cdots, \beta_K} \sum_{k=1}^K \frac{1}{n_k} \left[\sum_{i:O_i^k = 1} -\beta_k^T X_i + \log \left(\sum_{j:T^k_j \ge T^k_i} \exp(\beta_k^T X_j)\right)\right] + \lambda \left( \sum_{j=1}^d \|\beta^j\|_1 + \alpha \|\beta^j\|_2 \right)." />
 
-where <img src="https://latex.codecogs.com/gif.latex?\inline&space;\beta_k" title="\beta_k" /> is the coefficient vector of the kth (out of K) responses, and  <img src="https://latex.codecogs.com/gif.latex?\inline&space;\beta^j" title="\beta^j" /> are the coefficients of the jth variable on the K responses.
+![equation](https://latex.codecogs.com/svg.latex?%5Cmin_%7B%5Cbeta_1%2C%5Ccdots%2C%26space%3B%5Cbeta_K%7D%26space%3B%5Csum_%7Bk%3D1%7D%5EK%26space%3B%5Cfrac%7B1%7D%7Bn_k%7D%26space%3B%5Cleft%5B%5Csum_%7Bi%3AO_i%5Ek%26space%3B%3D%26space%3B1%7D%26space%3B-%5Cbeta_k%5ET%26space%3BX_i%26space%3B%26plus%3B%26space%3B%5Clog%26space%3B%5Cleft%28%5Csum_%7Bj%3AT%5Ek_j%26space%3B%5Cge%26space%3BT%5Ek_i%7D%26space%3B%5Cexp%28%5Cbeta_k%5ET%26space%3BX_j%29%5Cright%29%5Cright%5D%26space%3B%26plus%3B%26space%3B%5Clambda%26space%3B%5Cleft%28%26space%3B%5Csum_%7Bj%3D1%7D%5Ed%26space%3B%5C%7C%5Cbeta%5Ej%5C%7C_1%26space%3B%26plus%3B%26space%3B%5Calpha%26space%3B%5C%7C%5Cbeta%5Ej%5C%7C_2%26space%3B%5Cright%29.)
 
-For genetics data in [Plink2](https://www.cog-genomics.org/plink/2.0/) format, we provide a screening procedure similar to the one in [this paper](https://journals.plos.org/plosgenetics/article?rev=2&id=10.1371/journal.pgen.1009141).
+Where <img src="https://latex.codecogs.com/gif.latex?\inline&space;\beta_k" title="\beta_k" /> is the coefficient vector of the kth (out of K) responses, and  <img src="https://latex.codecogs.com/gif.latex?\inline&space;\beta^j" title="\beta^j" /> are the coefficients of the jth variable on the K responses.
+
+For genetics data in [PLINK2](https://www.cog-genomics.org/plink/2.0/) format, we provide a screening procedure similar to the one in [this paper](https://journals.plos.org/plosgenetics/article?rev=2&id=10.1371/journal.pgen.1009141).
 
 ## Installation
 Currently mrcox only supports linux and 64-bit intel processors. It requires Intel's Math Kernel Library (MKL). I suspect you can still get it to run on AMD processors but performance could be significantly worse. To install MKL:
@@ -15,7 +17,7 @@ Currently mrcox only supports linux and 64-bit intel processors. It requires Int
 You will also need to install the R dependencies of mrcox (Rcpp, RcppEigen). 
 ### Additional dependencies for genetics data
 1. [zstd(>=1.4.4)](https://github.com/facebook/zstd). It can be built from source or simply available from [conda](https://anaconda.org/conda-forge/zstd), [pip](https://pypi.org/project/zstd/) or [brew](https://formulae.brew.sh/formula/zstd)
-2. [Plink2](https://www.cog-genomics.org/plink/2.0/)
+2. [PLINK2](https://www.cog-genomics.org/plink/2.0/)
 3. 
 ```r
 library(devtools)
